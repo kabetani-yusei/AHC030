@@ -1,8 +1,8 @@
 from dataclasses import dataclass
 import sys
 import math
-
-
+import numpy as np
+    
 @dataclass
 class Brock:
     blocks_list: 'list[list[int]]'
@@ -16,12 +16,14 @@ class Judge:
         self.m = m
         self.e = e
 
-    def read_blocks(self) -> 'list[Brock]':
+    def read_blocks(self) -> 'tuple[int, list[Brock]]':
         blocks = []
+        value_sum = 0
         for _ in range(self.m):
             t = list(map(int, input().split()))
             blocks.append([Brock([t[i:i+2] for i in range(1, len(t), 2)])])
-        return blocks
+            value_sum += t[0]
+        return (value_sum, blocks)
     
     def output_query(self, use_choice: str, use_area: int, use_place: str) -> None:
         query = f"{use_choice} {use_area} {use_place}"
@@ -32,13 +34,13 @@ class Judge:
 
 
 class Visualizer():
-
     def __init__(self, n: int, m: int, e: float):
         print("# Visualizer mode")
         self.n = n
         self.m = m
         self.e = e
         self.blocks = []
+        self.value_sum = 0
         self.ans_map = [[0] * n for _ in range(n)]
         self.ans_list = []
         self.response = 0
@@ -48,6 +50,7 @@ class Visualizer():
         for _ in range(self.m):
             t = list(map(int, input().split()))
             self.blocks.append([Brock([t[i:i+2] for i in range(1, len(t), 2)])])
+            self.value_sum += t[0]
         
         #各ブロックの位置
         for _ in range(self.m):
@@ -67,8 +70,8 @@ class Visualizer():
             _ = input()
         
         
-    def read_blocks(self) -> 'list[Brock]':
-        return self.blocks
+    def read_blocks(self) -> 'tuple[int, list[Brock]]':
+        return (self.value_sum, self.blocks)
     
     def output_query(self, use_choice: str, use_area: int, use_place: str) -> None:
         query = f"{use_choice} {use_area} {use_place}"
@@ -79,14 +82,20 @@ class Visualizer():
             temp_blocks = [temp[i:i+2] for i in range(0, len(temp), 2)]
             self.response = 0
             if sorted(temp_blocks) == self.ans_list:
-                self.response = 1
+                self.response = 1          
         elif use_choice == 'q' and use_area == 1:
-            if use_area == 1:
-                temp = list(map(int, use_place.split()))
-                self.response = self.ans_map[temp[0]][temp[1]]
+            temp = list(map(int, use_place.split()))
+            self.response = self.ans_map[temp[0]][temp[1]]          
         elif use_choice == 'q' and use_area >= 2:
-            self.response = 0
-        
+            temp = list(map(int, use_place.split()))
+            area_list = [temp[i:i+2] for i in range(0, len(temp), 2)]
+            area_sum = sum([self.ans_map[x[0]][x[1]] for x in area_list])
+            u = (use_area - area_sum) * self.e + area_sum * (1 - self.e)
+            v = use_area * (1 - self.e) * self.e
+            # 平均が u で分散が v の正規分布から一つの要素を抽出
+            sample = np.random.normal(u, np.sqrt(v))
+            self.response = max(0, round(sample))
+            
     def read_response(self) -> int:
         return self.response
 
@@ -102,6 +111,8 @@ class Solver:
         self.n = n
         self.m = m
         self.e = e
+        self.value_sum = 0
+        self.ac_value_sum = 0
         self.mode = mode
         if mode == 0:
             self.judge = Judge(n, m, e)
@@ -118,12 +129,13 @@ class Solver:
         else:
             cost += round(1.0 / (math.sqrt(area)), 5)
         return cost
+    
     def solve(self) -> int:
         self.turn = 0
         self.cost = 0.0
         self.clear_flag = False
         self.map = [[-1] * self.n for _ in range(self.n)]
-        self.blocks = self.judge.read_blocks()
+        self.ac_value_sum, self.blocks = self.judge.read_blocks()
         
         for _ in range(2 * self.n ** 2):
             use_choice, use_area, use_place = self.select_action()
@@ -144,7 +156,7 @@ class Solver:
     def select_action(self) -> 'tuple[str, int, list[list[int]]]':
         for i in range(self.n):
             for j in range(self.n):
-                if self.map[i][j] == -1:
+                if self.map[i][j] == -1 and self.ac_value_sum > self.value_sum:
                     return ('q', 1, [[i, j]])
         
         ans_list = []
@@ -156,11 +168,14 @@ class Solver:
                 
     def reflection_response(self, use_place: 'list[list[int]]', response: int) -> None:
         self.map[use_place[0][0]][use_place[0][1]] = response
+        self.value_sum += response
         
 
 def main():
-    mode = 0# 0: 通常, 1: テスト
-    if len(sys.argv) == 2:# テストモード
+    #コマンドライン引数がある場合はビジュアライザー用として処理する
+    # mode  0: 通常, 1: ビジュアライザー用
+    mode = 0
+    if len(sys.argv) == 2:
         mode = 1
     n, m, e = input().split()
     n = int(n)
@@ -169,7 +184,7 @@ def main():
     solver = Solver(n, m, e, mode)
     cost = solver.solve()
     print(f"{cost}", file=sys.stderr)
-    print(f"cost:{cost}")
+    print(f"#total_cost:{cost}")
 
 
 if __name__ == "__main__":
