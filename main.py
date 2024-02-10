@@ -1,0 +1,176 @@
+from dataclasses import dataclass
+import sys
+import math
+
+
+@dataclass
+class Brock:
+    blocks_list: 'list[list[int]]'
+     
+     
+        
+class Judge:
+
+    def __init__(self, n: int, m: int, e: float):
+        self.n = n
+        self.m = m
+        self.e = e
+
+    def read_blocks(self) -> 'list[Brock]':
+        blocks = []
+        for _ in range(self.m):
+            t = list(map(int, input().split()))
+            blocks.append([Brock([t[i:i+2] for i in range(1, len(t), 2)])])
+        return blocks
+    
+    def output_query(self, use_choice: str, use_area: int, use_place: str) -> None:
+        query = f"{use_choice} {use_area} {use_place}"
+        print(query, flush=True)
+        
+    def read_response(self) -> int:
+        return int(input())
+
+
+class Visualizer():
+
+    def __init__(self, n: int, m: int, e: float):
+        print("# Visualizer mode")
+        self.n = n
+        self.m = m
+        self.e = e
+        self.blocks = []
+        self.ans_map = [[0] * n for _ in range(n)]
+        self.ans_list = []
+        self.response = 0
+        
+        #入力の読み込み
+        #各ブロックの形
+        for _ in range(self.m):
+            t = list(map(int, input().split()))
+            self.blocks.append([Brock([t[i:i+2] for i in range(1, len(t), 2)])])
+        
+        #各ブロックの位置
+        for _ in range(self.m):
+            _, _ = map(int, input().split())
+        
+        #マップの情報
+        for i in range(self.n):
+            line_input = list(map(int, input().split()))
+            for j in range(self.n):
+                self.ans_map[i][j] = line_input[j]
+                if line_input[j] >= 1:
+                    self.ans_list.append([i, j])
+        self.ans_list.sort()
+                
+        #誤差の情報
+        for _ in range(2 * self.n ** 2):
+            _ = input()
+        
+        
+    def read_blocks(self) -> 'list[Brock]':
+        return self.blocks
+    
+    def output_query(self, use_choice: str, use_area: int, use_place: str) -> None:
+        query = f"{use_choice} {use_area} {use_place}"
+        print(query, flush=True)
+        self.response = 0
+        if use_choice == 'a':
+            temp = list(map(int, use_place.split()))
+            temp_blocks = [temp[i:i+2] for i in range(0, len(temp), 2)]
+            self.response = 0
+            if sorted(temp_blocks) == self.ans_list:
+                self.response = 1
+        elif use_choice == 'q' and use_area == 1:
+            if use_area == 1:
+                temp = list(map(int, use_place.split()))
+                self.response = self.ans_map[temp[0]][temp[1]]
+        elif use_choice == 'q' and use_area >= 2:
+            self.response = 0
+        
+    def read_response(self) -> int:
+        return self.response
+
+    def comment(self, message: str) -> None:
+        print(f"# {message}")    
+           
+        
+          
+class Solver:
+
+    def __init__(self, n: int, m: int, e: float, mode: int):
+        print(f"n:{n}, m:{m}, e:{e}", file=sys.stderr)
+        self.n = n
+        self.m = m
+        self.e = e
+        self.mode = mode
+        if mode == 0:
+            self.judge = Judge(n, m, e)
+        else:
+            self.judge = Visualizer(n, m, e)
+
+    def flatten_list(self, nested_list):
+        flattened_list = [item for sublist in nested_list for item in sublist]
+        return ' '.join(map(str, flattened_list))
+    
+    def cost_change(self, cost: float, choice: str, area: int) -> int:
+        if choice == 'a':
+            cost += 1
+        else:
+            cost += round(1.0 / (math.sqrt(area)), 5)
+        return cost
+    def solve(self) -> int:
+        self.turn = 0
+        self.cost = 0.0
+        self.clear_flag = False
+        self.map = [[-1] * self.n for _ in range(self.n)]
+        self.blocks = self.judge.read_blocks()
+        
+        for _ in range(2 * self.n ** 2):
+            use_choice, use_area, use_place = self.select_action()
+            self.judge.output_query(use_choice, use_area, self.flatten_list(use_place))
+            res = self.judge.read_response()
+            self.reflection_response(use_place, res)
+            if use_choice == 'a' and res == 1:
+                self.clear_flag = True
+                break
+            
+            #得点計算用の処理
+            if self.mode == 1:
+                self.turn += 1
+                self.cost = self.cost_change(self.cost, use_choice, use_area)
+        
+        return self.cost
+    
+    def select_action(self) -> 'tuple[str, int, list[list[int]]]':
+        for i in range(self.n):
+            for j in range(self.n):
+                if self.map[i][j] == -1:
+                    return ('q', 1, [[i, j]])
+        
+        ans_list = []
+        for i in range(self.n):
+            for j in range(self.n):
+                if self.map[i][j] >= 1:
+                    ans_list.append([i, j])
+        return ('a', len(ans_list), ans_list)
+                
+    def reflection_response(self, use_place: 'list[list[int]]', response: int) -> None:
+        self.map[use_place[0][0]][use_place[0][1]] = response
+        
+
+def main():
+    mode = 0# 0: 通常, 1: テスト
+    if len(sys.argv) == 2:# テストモード
+        mode = 1
+    n, m, e = input().split()
+    n = int(n)
+    m = int(m)
+    e = float(e)
+    solver = Solver(n, m, e, mode)
+    cost = solver.solve()
+    print(f"{cost}", file=sys.stderr)
+    print(f"cost:{cost}")
+
+
+if __name__ == "__main__":
+    main()
