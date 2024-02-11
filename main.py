@@ -268,7 +268,9 @@ class Solver:
         for i in range(self.n):
             for j in range(self.n):
                 if self.map[i][j] == -1 and self.ac_value_sum > self.value_sum:
-                    return ('q', 1, [[i, j]])
+                    #上下左右のいずれかのマスが1以上の場合
+                    if self.map[max(0, i-1)][j] >= 1 or self.map[min(self.n-1, i+1)][j] >= 1 or self.map[i][max(0, j-1)] >= 1 or self.map[i][min(self.n-1, j+1)] >= 1:
+                        return ('q', 1, [[i, j]])
          
         ans_list = []       
         for i in range(self.n):
