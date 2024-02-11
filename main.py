@@ -15,24 +15,88 @@ class Block:
     coordinate: 'list[int]'
     area: int
     blocks_list: 'list[list[int]]'
- 
+
+
+class Map_search:
+    def __init__(self, n: int, m: int, blocks: 'list[Block]'):
+        self.n = n
+        self.m = m
+        self.blocks = blocks
+        self.fixed_blocks_list = []
+        self.fixed_blocks = [[] for _ in range(m)]
+    
+    def first_map(self, map: 'list[list[int]]') -> 'list[list[int]]':
+        for looking_block in self.blocks:
+            looking_block_coordinate = looking_block.coordinate
+            for i in range(self.n - looking_block_coordinate[0]):
+                for j in range(self.n - looking_block_coordinate[1]):
+                    for cc in looking_block.blocks_list:
+                        map[cc[0] + i][cc[1] + j] = -1
+        return map
+    
+    def reflection(self, map: 'list[list[int]]') -> 'list[list[int]]':
+        # 場所が確定したブロックがあるかどうか
+        for block_idx in range(self.m):
+            if block_idx in self.fixed_blocks_list:
+                continue
+            fit_count = 0
+            block_coordinate = self.blocks[block_idx].coordinate
+            for i in range(self.n - block_coordinate[0]):
+                for j in range(self.n - block_coordinate[1]):
+                    if fit_count >= 2:
+                        break
+                    flag = True
+                    for cc in self.blocks[block_idx].blocks_list:
+                        if map[cc[0] + i][cc[1] + j] == 0:
+                            flag = False
+                            break
+                    if flag:
+                        fit_count += 1
+                        self.fixed_blocks[block_idx] = [i, j]
+            if fit_count == 1:
+                self.fixed_blocks_list.append(block_idx)
+            
+        #埋めていく
+        temp_map = [[0] * self.n for _ in range(self.n)]
+        for block_idx in range(self.m):
+            if block_idx in self.fixed_blocks_list:
+                for cc in self.blocks[block_idx].blocks_list:
+                    temp_map[cc[0] + self.fixed_blocks[block_idx][0]][cc[1] + self.fixed_blocks[block_idx][1]] = 1
+            else:
+                block = self.blocks[block_idx]
+                block_coordinate = block.coordinate
+                for i in range(self.n - block_coordinate[0]):
+                    for j in range(self.n - block_coordinate[1]):
+                        flag = True
+                        for cc in block.blocks_list:
+                            if map[cc[0] + i][cc[1] + j] == 0:
+                                flag = False
+                                break
+                        if flag:
+                            for cc in block.blocks_list:
+                                temp_map[cc[0] + i][cc[1] + j] = 1
+        for i in range(self.n):
+            for j in range(self.n):
+                if temp_map[i][j] == 0:
+                    map[i][j] = 0
+        return map
      
 class Maping:
     
     def __init__(self, n: int, m: int, blocks: 'list[Block]', map_list: 'list[list[int]]'):
         self.MAX_RECURSION_DEPTH = 1000 # この回数を超えた場合は終了する
+        self.MAX_RECURSION_SIZE = 10 # 答えの候補がこの数を超えた場合は終了する
         self.roop_count = 0
-        
+        self.cand_count = 0
         self.n = n
         self.m = m
         self.blocks = blocks
         self.map = map_list
         self.ans_cand = []
-        self.cand_count = 0
         
     def predict(self) -> 'list[list[list[int]]]':
         self.dfs(0, [], self.map)
-        if self.roop_count > self.MAX_RECURSION_DEPTH or self.cand_count > 10 or self.ans_cand == []:
+        if self.roop_count > self.MAX_RECURSION_DEPTH or self.cand_count > self.MAX_RECURSION_SIZE or self.ans_cand == []:
             return []
         # 各要素をタプルに変換してセットに格納
         unique_set = set(tuple(tuple(inner) for inner in outer) for outer in self.ans_cand)
@@ -40,7 +104,7 @@ class Maping:
         return unique_list
     
     def dfs(self, index: int, ans_list: 'list[tuple[int]]', map: 'list[list[int]]') -> None:
-        if self.roop_count > self.MAX_RECURSION_DEPTH or self.cand_count > 10:
+        if self.roop_count > self.MAX_RECURSION_DEPTH or self.cand_count > self.MAX_RECURSION_SIZE:
             return
         if index == self.m:
             unique_ans_list = set(ans_list)
@@ -49,7 +113,7 @@ class Maping:
                     if map[i][j] >= 1:
                         return
             self.cand_count += 1
-            if self.cand_count > 10:
+            if self.cand_count > self.MAX_RECURSION_SIZE:
                 return
             self.ans_cand.append([list(x) for x in unique_ans_list])
             return
@@ -187,11 +251,18 @@ class Solver:
         self.n = n
         self.m = m
         self.e = e
+        self.mode = mode
+        
+        self.turn = 0
+        self.cost = 0.0
+        self.clear_flag = False
+        self.map = [[0] * self.n for _ in range(self.n)]
+        
         self.value_sum = 0
         self.ac_value_sum = 0
-        self.mode = mode
         self.ans_cand = []
         self.used_question = {}
+        
         if mode == 0:
             self.judge = Judge(n, m, e)
         else:
@@ -210,12 +281,10 @@ class Solver:
         return cost
     
     def solve(self) -> int:
-        self.turn = 0
-        self.cost = 0.0
-        self.clear_flag = False
-        self.map = [[-1] * self.n for _ in range(self.n)]
         self.ac_value_sum, self.blocks = self.judge.read_blocks()
-
+        self.map_search = Map_search(self.n, self.m, self.blocks)
+        self.map = self.map_search.first_map(self.map)
+        
         for _ in range(2 * self.n ** 2):
             use_choice, use_area, use_place = self.select_action()
             if use_choice == 'q' and use_area == 1:
@@ -260,17 +329,34 @@ class Solver:
             ans_list = self.ans_cand.pop()
             return ('a', len(ans_list), ans_list)
         
-        for i in range(self.n):
-            for j in range(i%2, self.n, 2):
-                if self.map[i][j] == -1 and self.ac_value_sum > self.value_sum:
-                    return ('q', 1, [[i, j]])
-        
-        for i in range(self.n):
-            for j in range(self.n):
-                if self.map[i][j] == -1 and self.ac_value_sum > self.value_sum:
-                    #上下左右のいずれかのマスが1以上の場合
-                    if self.map[max(0, i-1)][j] >= 1 or self.map[min(self.n-1, i+1)][j] >= 1 or self.map[i][max(0, j-1)] >= 1 or self.map[i][min(self.n-1, j+1)] >= 1:
+        nn = self.n//2
+        for ii in range(self.n):
+            i = nn + ii
+            if i < self.n:
+                for j in range(i%2, self.n, 2):
+                    if self.map[i][j] == -1 and self.ac_value_sum > self.value_sum:
                         return ('q', 1, [[i, j]])
+            i = nn - ii
+            if i >= 0:
+                for j in range(i%2, self.n, 2):
+                    if self.map[i][j] == -1 and self.ac_value_sum > self.value_sum:
+                        return ('q', 1, [[i, j]])
+        
+        for ii in range(self.n):
+            i = nn + ii
+            if i < self.n:
+                for j in range(self.n):
+                    if self.map[i][j] == -1 and self.ac_value_sum > self.value_sum:
+                        #上下左右のいずれかのマスが1以上の場合
+                        if self.map[max(0, i-1)][j] >= 1 or self.map[min(self.n-1, i+1)][j] >= 1 or self.map[i][max(0, j-1)] >= 1 or self.map[i][min(self.n-1, j+1)] >= 1:
+                            return ('q', 1, [[i, j]])
+            i = nn - ii
+            if i >= 0:
+                for j in range(self.n):
+                    if self.map[i][j] == -1 and self.ac_value_sum > self.value_sum:
+                        #上下左右のいずれかのマスが1以上の場合
+                        if self.map[max(0, i-1)][j] >= 1 or self.map[min(self.n-1, i+1)][j] >= 1 or self.map[i][max(0, j-1)] >= 1 or self.map[i][min(self.n-1, j+1)] >= 1:
+                            return ('q', 1, [[i, j]])
          
         ans_list = []       
         for i in range(self.n):
@@ -282,7 +368,7 @@ class Solver:
     def reflection_response(self, use_place: 'list[list[int]]', response: int) -> None:
         self.map[use_place[0][0]][use_place[0][1]] = response
         self.value_sum += response
-        
+        self.map = self.map_search.reflection(self.map)
 
 def main():
     #コマンドライン引数がある場合はビジュアライザー用として処理する
