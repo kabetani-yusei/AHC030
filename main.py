@@ -28,46 +28,7 @@ class Block:
     
     def duplicate(self, n: int):
         self.duplication = n
-
-class Map_bfs:
-    def __init__(self, n: int, m: int, blocks: 'list[Block]'):
-        self.n = n
-        self.m = m
-        self.blocks = blocks
-
-    #だめならFalseを返す
-    def is_ok_check(self, map: 'list[list[int]]', order: 'list[int]', now:int) -> bool:
-        req_sum = self.__req_sum_check(order, now)
-        temp_map = [x[:] for x in map]
-        for i in range(self.n):
-            for j in range(self.n):
-                if map[i][j] >= 1:
-                    self.dist = [[0]*self.n for _ in range(self.n)]
-                    if not self.__ng_bfs(temp_map, req_sum, i, j):
-                        return False
-        return True
-    
-    def __req_sum_check(self, order: 'list[int]', now: int) -> int:
-        if now == self.m-1:
-            return 1
-        res = self.n ** 2
-        for i in range((now+1), self.m):
-            res = min(res, self.blocks[order[i]].num)
-        return res
-    #ダメな場合はFalseを返す   
-    def __ng_bfs(self, map: 'list[list[int]]', req: int, i: int, j: int) -> bool:
-        self.dist[i][j] = 1
-        queue = [(i, j)]
-        sum = 0
-        while queue:
-            sum += 1
-            if sum >= req:
-                return True
-            i, j = queue.pop(0)
-            for i2, j2 in [(i+1, j), (i-1, j), (i, j+1), (i, j-1)]:
-                if 0 <= i2 < self.n and 0 <= j2 < self.n and map[i2][j2] != 0 and self.dist[i2][j2] == 0:
-                    queue.append((i2, j2))
-        return False
+        
     
      
 class Mapping:
@@ -84,19 +45,20 @@ class Mapping:
         self.fixed_blocks_list = []
         self.fixed_blocks = [[] for _ in range(m)]
         
-    def input_list(self, blocks: 'list[Block]') -> None:
+    def input_list(self, val_sum_ac:int, blocks: 'list[Block]') -> None:
+        self.val_sum_ac = val_sum_ac
         self.blocks = blocks
-        self.map_bfs = Map_bfs(self.n, self.m, blocks)
         
-    def predict(self, original_map: 'list[list[int]]') -> 'list[list[list[int]]]':
+    def predict(self, val_sum:int, original_map: 'list[list[int]]') -> 'list[list[list[int]]]':
         self.ans_cand = []
+        self.val_sum = val_sum
         self.block_look_order = [x for x in self.fixed_blocks_list]
         self.roop_count = 0
         for i in range(self.m):
             if i not in self.block_look_order:
                 self.block_look_order.append(i)
         map = [x[:] for x in original_map]
-        self.dfs(0, [], map)
+        self.dfs(0, 0, [], map)
         if self.roop_count > self.MAX_RECURSION_DEPTH or self.ans_cand == []:
             return []
         # 各要素をタプルに変換してセットに格納
@@ -105,7 +67,7 @@ class Mapping:
         return unique_list
     
     
-    def dfs(self, index: int, ans_list: 'list[tuple[int]]', map: 'list[list[int]]') -> None:
+    def dfs(self, index: int, val_now:int, ans_list: 'list[tuple[int]]', map: 'list[list[int]]') -> None:
         if self.roop_count > self.MAX_RECURSION_DEPTH:
             return
         if index == self.m:
@@ -127,7 +89,9 @@ class Mapping:
                 each_block_list_temp.append((ii,jj))
                 if temp_map[ii][jj] >= 1:
                     temp_map[ii][jj] -= 1
-            self.dfs(index + 1, ans_list + each_block_list_temp, temp_map)
+                else:
+                    val_now += 1
+            self.dfs(index + 1, val_now, ans_list + each_block_list_temp, temp_map)
         else:
             looking_block = self.blocks[idx]
             looking_block_coordinate = looking_block.coordinate
@@ -142,15 +106,18 @@ class Mapping:
                         each_block_list_temp.append((cc[0] + i, cc[1] + j))
 
                     if flag:
+                        val_temp = 0
                         temp_map = [x[:] for x in map]
                         for cc in looking_block.blocks_list:
                             if temp_map[cc[0] + i][cc[1] + j] >= 1:
                                 temp_map[cc[0] + i][cc[1] + j] -= 1
+                            else:
+                                val_temp += 1
                         self.roop_count += 1
                         if self.roop_count > self.MAX_RECURSION_DEPTH:
                             return
-                        if self.map_bfs.is_ok_check(temp_map, self.block_look_order, index):
-                            self.dfs(index + 1, ans_list + each_block_list_temp, temp_map)
+                        if (val_now+val_temp) + self.val_sum <= self.val_sum_ac:
+                            self.dfs(index + 1, (val_now+val_temp), ans_list + each_block_list_temp, temp_map)
 
 
     def first_map(self, map: 'list[list[int]]') -> 'list[list[int]]':
@@ -162,22 +129,19 @@ class Mapping:
                         map[cc[0] + i][cc[1] + j] = -1
         return map
     
-    def reset(self, map: 'list[list[int]]') -> 'tuple[int, int, list[list[int]], list[list[int]]]':
+    def reset(self, map: 'list[list[int]]') -> 'tuple[int, list[list[int]]]':
         self.block_look_order = [x for x in self.fixed_blocks_list]
         for i in range(self.m):
             if i not in self.block_look_order:
                 self.block_look_order.append(i)
         temp_map = [x[:] for x in map]
-        temp_map_zero = [[0]*self.n for _ in range(self.n)]
-        return (0, 0, temp_map, temp_map_zero)
+        return (0, temp_map)
     def reflection(self, map: 'list[list[int]]') -> 'tuple[list[list[int]], int, list[list[int, list[int]]]]':
-        idx, cell_sum, temp_map, temp_map_zero = self.reset(map)
+        idx, temp_map = self.reset(map)
         while(idx < self.m):
             block_idx = self.block_look_order[idx]
             if block_idx in self.fixed_blocks_list:
-                cell_sum += 1
                 for cc in self.blocks[block_idx].blocks_list:
-                    temp_map_zero[cc[0] + self.fixed_blocks[block_idx][0]][cc[1] + self.fixed_blocks[block_idx][1]] += 1
                     if temp_map[cc[0] + self.fixed_blocks[block_idx][0]][cc[1] + self.fixed_blocks[block_idx][1]] >= 1:
                         temp_map[cc[0] + self.fixed_blocks[block_idx][0]][cc[1] + self.fixed_blocks[block_idx][1]] -= 1
             
@@ -194,27 +158,60 @@ class Mapping:
                         if flag:
                             fit_count += 1
                             self.fixed_blocks[block_idx] = [i, j]
-                            cell_sum += 1
-                            for cc in self.blocks[block_idx].blocks_list:
-                                temp_map_zero[cc[0] + i][cc[1] + j] += 1
                 if fit_count <= self.blocks[block_idx].duplication:
                     self.fixed_blocks_list.append(block_idx)
-                    idx, cell_sum, temp_map, temp_map_zero = self.reset(map)
+                    idx, temp_map = self.reset(map)
                     continue
             idx += 1
+        
+        #埋めていく & エントロピーによる優先順位    
+        temp_map_zero = [[0]*self.n for _ in range(self.n)]
+        temp_map_h_sum = [[0]*self.n for _ in range(self.n)]
+        idx, temp_map = self.reset(map)
+        for idx in range(self.m):
+            block_idx = self.block_look_order[idx]
+            if block_idx in self.fixed_blocks_list:
+                for cc in self.blocks[block_idx].blocks_list:
+                    x = cc[0] + self.fixed_blocks[block_idx][0]
+                    y = cc[1] + self.fixed_blocks[block_idx][1]
+                    temp_map_zero[x][y] += 1
+                    if temp_map[x][y] >= 1:
+                        temp_map[x][y] -= 1
+            
+            else:
+                temp_map_h = [[0]*self.n for _ in range(self.n)]
+                block_coordinate = self.blocks[block_idx].coordinate
+                fit_count = 0
+                for i in range(self.n - block_coordinate[0]):
+                    for j in range(self.n - block_coordinate[1]):
+                        flag = True
+                        for cc in self.blocks[block_idx].blocks_list:
+                            if temp_map[cc[0] + i][cc[1] + j] == 0:
+                                flag = False
+                                break
+                        if flag:
+                            fit_count += 1
+                            self.fixed_blocks[block_idx] = [i, j]
+                            for cc in self.blocks[block_idx].blocks_list:
+                                temp_map_zero[cc[0] + i][cc[1] + j] += 1
+                                temp_map_h[cc[0] + i][cc[1] + j] += 1
+                for i in range(self.n):
+                    for j in range(self.n):
+                        if temp_map_h[i][j] > 0:
+                            prob = round(temp_map_h[i][j] / fit_count, 5)
+                            temp_map_h_sum[i][j] -= round(prob * math.log2(prob), 5)
             
         for i in range(self.n):
             for j in range(self.n):
                 if temp_map_zero[i][j] == 0 and map[i][j] == -1:
-                    map[i][j] = 0
-                    
+                    map[i][j] = 0       
         cell_cand = []
         for i in range(self.n):
             for j in range(self.n):
                 if map[i][j] == -1:
-                    cell_cand.append((temp_map_zero[i][j], [i, j]))
+                    cell_cand.append((temp_map_h_sum[i][j], [i, j]))
 
-        return (map, cell_sum // 2, cell_cand)
+        return (map, cell_cand)
     
     
     def cell_information_ans(self, map: 'list[list[int]]', ans_cand: 'list[list[list[int]]]') -> 'tuple[int, list[list[int, list[int]]]]':
@@ -397,7 +394,7 @@ class Solver:
     
     def solve(self) -> int:
         self.val_sum_ac, self.blocks = self.judge.read_blocks()
-        self.mapping_class.input_list(self.blocks)
+        self.mapping_class.input_list(self.val_sum_ac, self.blocks)
         self.map = self.mapping_class.first_map(self.map)
 
         for _ in range(2 * self.n ** 2):
@@ -434,10 +431,10 @@ class Solver:
                         ans_list.append([i, j])
             return ('a', len(ans_list), ans_list)
         
-        self.map, cell_sum_half, cell_cand = self.mapping_class.reflection(self.map)
+        self.map, cell_cand = self.mapping_class.reflection(self.map)
         self.now_map()
         if self.ans_cand == []:
-            self.ans_cand = self.mapping_class.predict(self.map)
+            self.ans_cand = self.mapping_class.predict(self.val_sum, self.map)
         while(self.ans_cand != [] and len(self.ans_cand) <= 3):
             ans_list = self.ans_cand.pop()
             return ('a', len(ans_list), ans_list)
@@ -448,7 +445,7 @@ class Solver:
             self.ans_cand = []
             return ('q', 1, cell_cand_ans_sorted[0][1])
         
-        cell_cand_sorted = sorted(cell_cand, key=lambda x: [abs(x[0]-cell_sum_half), x[0]])
+        cell_cand_sorted = sorted(cell_cand, key=lambda x: x[0], reverse=True)
         return ('q', 1, cell_cand_sorted[0][1])
 
                        
