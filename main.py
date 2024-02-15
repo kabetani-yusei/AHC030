@@ -71,12 +71,11 @@ class Mapping:
         if self.roop_count > self.MAX_RECURSION_DEPTH:
             return
         if index == self.m:
-            unique_ans_list = set(ans_list)
             for i in range(self.n):
                 for j in range(self.n):
                     if map[i][j] >= 1:
                         return
-            self.ans_cand.append([list(x) for x in unique_ans_list])
+            self.ans_cand.append([list(x) for x in ans_list])
             return
 
         idx = self.block_look_order[index]
@@ -199,7 +198,7 @@ class Mapping:
                     for j in range(self.n):
                         if temp_map_h[i][j] > 0:
                             prob = round(temp_map_h[i][j] / fit_count, 5)
-                            temp_map_h_sum[i][j] -= round(prob * math.log2(prob), 5)
+                            temp_map_h_sum[i][j] = round(temp_map_h_sum[i][j] - prob * math.log2(prob), 5)
             
         for i in range(self.n):
             for j in range(self.n):
@@ -214,19 +213,31 @@ class Mapping:
         return (map, cell_cand)
     
     
-    def cell_information_ans(self, map: 'list[list[int]]', ans_cand: 'list[list[list[int]]]') -> 'tuple[int, list[list[int, list[int]]]]':
-        cell_sum_half = len(ans_cand) // 2
-        temp_map = [[0]*self.n for _ in range(self.n)]
+    def cell_information_ans(self, map: 'list[list[int]]', ans_cand: 'list[list[list[int]]]') -> 'list[list[float, list[int]]]':
+        temp_map_h_sum = [[0]*self.n for _ in range(self.n)]
+        temp_map_h = [[{} for _ in range(self.n)] for _ in range(self.n)]
+
+        fit_count = len(ans_cand)
         for cand in ans_cand:
+            temp_map_cand = [[0]*self.n for _ in range(self.n)]
             for cc in cand:
-                temp_map[cc[0]][cc[1]] += 1
-                    
+                temp_map_cand[cc[0]][cc[1]] += 1
+            for i in range(self.n):
+                for j in range(self.n):
+                    if temp_map_cand[i][j] not in temp_map_h[i][j]:
+                        temp_map_h[i][j][temp_map_cand[i][j]] = 1
+                    else:
+                        temp_map_h[i][j][temp_map_cand[i][j]] += 1
+        
         cell_cand = []
         for i in range(self.n):
             for j in range(self.n):
                 if map[i][j] == -1:
-                    cell_cand.append((temp_map[i][j], [i, j]))
-        return (cell_sum_half, cell_cand)
+                    for value in temp_map_h[i][j].values():
+                        prob = round(value / fit_count, 5)
+                        temp_map_h_sum[i][j] = round(temp_map_h_sum[i][j] - prob * math.log2(prob), 5)
+                    cell_cand.append((temp_map_h_sum[i][j], [i, j]))
+        return cell_cand
         
 class Judge:
 
@@ -320,7 +331,7 @@ class Visualizer():
             if use_area == 1:
                 self.cost += 1
             else:
-                self.cost += round(1 / math.sqrt(use_area), 5)
+                self.cost = round(self.cost + 1 / math.sqrt(use_area), 5)
                 
         query = f"{use_choice} {use_area} {use_place}"
         print(query, flush=True)
@@ -437,11 +448,13 @@ class Solver:
             self.ans_cand = self.mapping_class.predict(self.val_sum, self.map)
         while(self.ans_cand != [] and len(self.ans_cand) <= 3):
             ans_list = self.ans_cand.pop()
+            ans_list = set(tuple(inner) for inner in ans_list)
+            ans_list = [list(inner) for inner in ans_list]
             return ('a', len(ans_list), ans_list)
         
         if self.ans_cand != []:
-            cell_sum_half_ans, cell_cand_ans = self.mapping_class.cell_information_ans(self.map, self.ans_cand)
-            cell_cand_ans_sorted = sorted(cell_cand_ans, key=lambda x: [abs(x[0]-cell_sum_half_ans), x[0]])
+            cell_cand_ans = self.mapping_class.cell_information_ans(self.map, self.ans_cand)
+            cell_cand_ans_sorted = sorted(cell_cand_ans, key=lambda x: x[0], reverse=True)
             self.ans_cand = []
             return ('q', 1, cell_cand_ans_sorted[0][1])
         
