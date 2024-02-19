@@ -33,16 +33,12 @@ class Block:
      
 class Mapping:
     
-    def __init__(self, n: int, m: int): 
+    def __init__(self, n: int, m: int):
+        self.MAX_RECURSION_DEPTH = 2000 # この回数を超えた場合は終了する
+        self.roop_count = 0
+        
         self.n = n
         self.m = m
-        if self.n > 15 or self.m > 15:
-            self.MAX_RECURSION_DEPTH = 1000
-        elif self.m > 10:
-            self.MAX_RECURSION_DEPTH = 1500
-        else:
-            self.MAX_RECURSION_DEPTH = 2000
-        self.roop_count = 0
         self.ans_cand = []
         self.block_look_order = []
 
