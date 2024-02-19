@@ -3,7 +3,7 @@ import sys
 
 # テストケースの範囲（0から99まで）
 start_case = 0
-end_case = 100
+end_case = 499
 
 total_cost = 0.0
 

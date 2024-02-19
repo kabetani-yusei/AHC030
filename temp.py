@@ -33,17 +33,22 @@ class Block:
      
 class Mapping:
     
-    def __init__(self, n: int, m: int):
-        self.MAX_RECURSION_DEPTH = 1000 # この回数を超えた場合は終了する
-        self.roop_count = 0
-        
+    def __init__(self, n: int, m: int): 
         self.n = n
         self.m = m
+        if self.n > 15 or self.m > 15:
+            self.MAX_RECURSION_DEPTH = 1000
+        elif self.m > 10:
+            self.MAX_RECURSION_DEPTH = 1500
+        else:
+            self.MAX_RECURSION_DEPTH = 2000
+        self.roop_count = 0
         self.ans_cand = []
         self.block_look_order = []
 
         self.fixed_blocks_list = []
         self.fixed_blocks = [[] for _ in range(m)]
+        self.ng_cell_list = [[] for _ in range(m)]
         
     def input_list(self, val_sum_ac:int, blocks: 'list[Block]') -> None:
         self.val_sum_ac = val_sum_ac
@@ -96,6 +101,8 @@ class Mapping:
             looking_block_coordinate = looking_block.coordinate
             for i in range(self.n - looking_block_coordinate[0]):
                 for j in range(self.n - looking_block_coordinate[1]):
+                    if (i,j) in self.ng_cell_list[idx]:
+                        continue
                     each_block_list_temp = []
                     flag = True
                     for cc in looking_block.blocks_list:
@@ -116,7 +123,12 @@ class Mapping:
                         if self.roop_count > self.MAX_RECURSION_DEPTH:
                             return
                         if (val_now+val_temp) + self.val_sum <= self.val_sum_ac:
+                            now_cand_len = len(self.ans_cand)
                             self.dfs(index + 1, (val_now+val_temp), ans_list + each_block_list_temp, temp_map)
+                            if self.roop_count < self.MAX_RECURSION_DEPTH and now_cand_len == len(self.ans_cand) and index == 0:
+                                self.ng_cell_list[idx].append((i,j))
+                    else:
+                        self.ng_cell_list.append((i,j))
 
 
     def first_map(self, map: 'list[list[int]]') -> 'list[list[int]]':
@@ -149,6 +161,8 @@ class Mapping:
                 block_coordinate = self.blocks[block_idx].coordinate
                 for i in range(self.n - block_coordinate[0]):
                     for j in range(self.n - block_coordinate[1]):
+                        if (i,j) in self.ng_cell_list[block_idx]:
+                            continue
                         flag = True
                         for cc in self.blocks[block_idx].blocks_list:
                             if temp_map[cc[0] + i][cc[1] + j] == 0:
@@ -157,6 +171,8 @@ class Mapping:
                         if flag:
                             fit_count += 1
                             self.fixed_blocks[block_idx] = [i, j]
+                        else:
+                            self.ng_cell_list[block_idx].append((i,j))
                 if fit_count <= self.blocks[block_idx].duplication:
                     self.fixed_blocks_list.append(block_idx)
                     idx, temp_map = self.reset(map)
@@ -183,6 +199,8 @@ class Mapping:
                 fit_count = 0
                 for i in range(self.n - block_coordinate[0]):
                     for j in range(self.n - block_coordinate[1]):
+                        if (i,j) in self.ng_cell_list[block_idx]:
+                            continue
                         flag = True
                         for cc in self.blocks[block_idx].blocks_list:
                             if temp_map[cc[0] + i][cc[1] + j] == 0:
@@ -194,6 +212,8 @@ class Mapping:
                             for cc in self.blocks[block_idx].blocks_list:
                                 temp_map_zero[cc[0] + i][cc[1] + j] += 1
                                 temp_map_h[cc[0] + i][cc[1] + j] += 1
+                        else:
+                            self.ng_cell_list[block_idx].append((i,j))
                 for i in range(self.n):
                     for j in range(self.n):
                         if temp_map_h[i][j] > 0:
@@ -397,10 +417,7 @@ class Solver:
         
         self.mapping_class = Mapping(self.n, self.m)
         
-        if mode == 0:
-            self.judge = Judge(n, m, e)
-        else:
-            self.judge = Visualizer(n, m, e)
+        self.judge = Visualizer(n, m, e)
 
     
     def solve(self) -> int:
